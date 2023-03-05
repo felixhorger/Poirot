@@ -27,11 +27,12 @@ void GLAPIENTRY gl_error_callback(
 	exit(1);
 }
 
-int width, height;
-void framebuffer_size_callback(GLFWwindow* window, int new_width, int new_height) {
-	width = new_width;
-	height = new_height;
-	glViewport(0, 0, width, height);
+int window_length, window_offset_x, window_offset_y;
+void framebuffer_size_callback(GLFWwindow* window, int width, int height) {
+	window_length = width < height ? width : height;
+	window_offset_x = (width - window_length) / 2;
+	window_offset_y = (height - window_length) / 2;
+	glViewport(window_offset_x, window_offset_y, window_length, window_length);
 	return;
 }
 
@@ -102,7 +103,10 @@ int main(int argc, char* argv[]) {
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 5);
 	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 	glfwSetErrorCallback(error_callback);
-	GLFWwindow* window = glfwCreateWindow(800, 600, "", NULL, NULL); //glfwGetPrimaryMonitor()
+	window_length = 800;
+	window_offset_x = 0;
+	window_offset_y = 0;
+	GLFWwindow* window = glfwCreateWindow(window_length, window_length, "", NULL, NULL); //glfwGetPrimaryMonitor()
 	if (!window) {
 		printf("Error: could not open window");
 		return 1;
@@ -111,10 +115,7 @@ int main(int argc, char* argv[]) {
 	glfwSetMouseButtonCallback(window, mouse_button_callback);
 	glfwMakeContextCurrent(window);
 	gladLoadGL();
-	{
-		glfwGetFramebufferSize(window, &width, &height);
-		glViewport(0, 0, width, height);
-	}
+	glViewport(0, 0, window_length, window_length);
 	glEnable(GL_DEBUG_OUTPUT);
 	glDebugMessageCallback(gl_error_callback, 0);
 
@@ -299,8 +300,8 @@ int main(int argc, char* argv[]) {
 		if (mouse_button_left) {
 			double x, y;
 			glfwGetCursorPos(window, &x, &y);
-			x = 2.0 * x / width  - 1.0;
-			y = 1.0 - 2.0 * y / height;
+			x = 2.0 * (x - window_offset_x) / window_length  - 1.0;
+			y = 1.0 - 2.0 * (y - window_offset_y) / window_length;
 			char update = 1;
 			//printf("%f, %f\n", x, y);
 			if (x >= -0.98 && x <= -0.02) {
@@ -348,11 +349,6 @@ int main(int argc, char* argv[]) {
 		// Views
 		glUseProgram(views_program);
 		glBindVertexArray(views_vertex_array);
-		//float j;
-		//j = ((float)rand()) / RAND_MAX;
-		//slices[0] = j;
-		//slices[1] = j;
-		//slices[2] = j;
 		for (int i = 0; i <= 8; i += 4) glDrawArrays(GL_TRIANGLE_FAN, i, 4);
 		glUseProgram(crosses_program);
 		glBindVertexArray(crosses_vertex_array);
