@@ -102,8 +102,8 @@ void plane_0_tex_coords(float tex_coord[2], float window_coord[2], float tex_low
 }
 
 void plane_0_window_coords(float window_coord[2], float tex_coord[2], float tex_lower[2], float tex_upper[2]) {
-	window_coord[0] = (window_coord[0] - tex_lower[1]) * 0.96 / (tex_upper[1] - tex_lower[1]) + 0.02 - 1.0;
-	window_coord[1] = (window_coord[1] - tex_lower[0]) * 0.96 / (tex_upper[0] - tex_lower[0]) + 0.02;
+	window_coord[0] = (tex_coord[0] - tex_lower[1]) * 0.96 / (tex_upper[1] - tex_lower[1]) + 0.02 - 1.0;
+	window_coord[1] = (tex_coord[1] - tex_lower[0]) * 0.96 / (tex_upper[0] - tex_lower[0]) + 0.02;
 	return;
 }
 
@@ -259,6 +259,11 @@ int main(int argc, char* argv[]) {
 		{-0.5f, -0.5f, -0.5f, -0.5f}, // (0, 2, 1)
 		{ 0.5f,  0.5f,  0.5f,  0.5f}  // (1, 2, 0)
 	};
+	float tex_centres[3][2] = {
+		{0.5f, 0.5f}, // (0, 1, 2)
+		{0.5f, 0.5f}, // (0, 2, 1)
+		{0.5f, 0.5f}  // (1, 2, 0)
+	};
 
 	float image[100*100*100] = { 0 };
 
@@ -365,10 +370,16 @@ int main(int argc, char* argv[]) {
 				float mouse_tex_coord[2];
 				plane_0_tex_coords(mouse_tex_coord, mouse_window, tex_coords[0][0], tex_coords[0][2]);
 				if (mouse_left_button) {
+					// Change position of crosses in window coordinates
 					centres[0][0] = mouse_window[0];
 					centres[0][1] = mouse_window[1];
 					centres[1][0] = mouse_window[0];
 					centres[2][1] = mouse_window[1];
+					// Change position of crosses in texture coordinates
+					for (int i = 0; i < 3; i++) {
+						plane_0_tex_coords(tex_centres[i], centres[i], tex_coords[i][0], tex_coords[i][2]);
+					}
+					// Change slice in other views
 					for (int i = 0; i < 4; i++) {
 						tex_coords[2][i][0] = mouse_tex_coord[0];
 						tex_coords[1][i][1] = mouse_tex_coord[1];
@@ -379,8 +390,6 @@ int main(int argc, char* argv[]) {
 					float zoom = 1;
 					if (zoom_in_key)		{zoom -= zoom_incr; zoom_level -= 1;}
 					else if (zoom_out_key)	{zoom += zoom_incr; zoom_level += 1;}
-					// Change position of crosses
-					plane_0_tex_coords(centres[0], centres[0], tex_coords[0][0], tex_coords[0][2]);
 					// Zoom into texture
 					float shift[2] = {0};
 					for (int i = 0; i < 4; i++) {
@@ -399,8 +408,8 @@ int main(int argc, char* argv[]) {
 							// Still need fmax/fmin because of inaccuracy
 						}
 					}
-					plane_0_window_coords(centres[0], centres[0], tex_coords[0][0], tex_coords[0][2]);
-					// TODO: store cross centres (in texture coords) as separate variable to avoid numerical error if heavy zooming
+					// Update position of cross in window
+					plane_0_window_coords(centres[0], tex_centres[0], tex_coords[0][0], tex_coords[0][2]);
 				}
 				if (move_up_key) {
 					float zoom = 0.01 * powf((1 + zoom_incr), zoom_level / 100.0);
