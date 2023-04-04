@@ -179,7 +179,7 @@ int main(int argc, char* argv[]) {
 		 0.98f,  0.98f,
 		 0.02f,  0.98f
 	};
-	float tex_coords[3][4][3] = {
+	float tex_coords[3][4][3] = { // plane, corner, axis
 		{ // (0, 1, 2)
 			{ 0.0f, 0.0f, 0.5f },
 			{ 0.0f, 1.0f, 0.5f },
@@ -324,6 +324,7 @@ int main(int argc, char* argv[]) {
 	glTexSubImage3D(GL_TEXTURE_3D, 0, 0, 0, 0, 100, 100, 100, GL_RED, GL_FLOAT, image);
 
 	// Main loop
+	int zoom_level = 0;
 	float zoom_incr = 0.007;
 	float shift[3];
 	while (!glfwWindowShouldClose(window)) {
@@ -376,25 +377,50 @@ int main(int argc, char* argv[]) {
 				if (zoom_in_key || zoom_out_key) {
 					// Change zoom
 					float zoom = 1;
-					if (zoom_in_key)		zoom -= zoom_incr;
-					else if (zoom_out_key)	zoom += zoom_incr;
+					if (zoom_in_key)		{zoom -= zoom_incr; zoom_level -= 1;}
+					else if (zoom_out_key)	{zoom += zoom_incr; zoom_level += 1;}
 					// Change position of crosses
-					// TODO: this formula belongs into a function since used above
 					plane_0_tex_coords(centres[0], centres[0], tex_coords[0][0], tex_coords[0][2]);
 					// Zoom into texture
+					float shift[2] = {0};
 					for (int i = 0; i < 4; i++) {
 						for (int j = 0; j < 2; j++) {
-							tex_coords[0][i][1-j] = fmin(
-								1,
-								fmax(
-									0,
-									zoom * (tex_coords[0][i][1-j] - mouse_tex_coord[j]) + mouse_tex_coord[j]
-								)
-							);
+							float c = zoom * (tex_coords[0][i][j] - mouse_tex_coord[1-j]) + mouse_tex_coord[1-j];
+							tex_coords[0][i][j] = c;
+							if (c < 0)		c = -c;
+							else if (c > 1)	c = 1 - c;
+							else			c = 0;
+							if (c != 0) shift[j] = c;
+						}
+					}
+					for (int i = 0; i < 4; i++) {
+						for (int j = 0; j < 2; j++) {
+							tex_coords[0][i][j] = fmax(0, fmin(1, tex_coords[0][i][j] + shift[j]));
+							// Still need fmax/fmin because of inaccuracy
 						}
 					}
 					plane_0_window_coords(centres[0], centres[0], tex_coords[0][0], tex_coords[0][2]);
 					// TODO: store cross centres (in texture coords) as separate variable to avoid numerical error if heavy zooming
+				}
+				if (move_up_key) {
+					float zoom = 0.01 * powf((1 + zoom_incr), zoom_level / 100.0);
+					printf("%f %f %d\n", zoom, 1 / zoom_incr, zoom_level);
+					float new_coord[3];
+					char is_outside = 0;
+					for (int j = 0; j < 4; j++) {
+						float c = tex_coords[0][j][0] + zoom;
+						if (c < 0.0 || c > 1.0) {
+							is_outside = 1;
+							break;
+						}
+					}
+					if (!is_outside) {
+						for (int j = 0; j < 4; j++) {
+							tex_coords[0][j][0] = new_coord[j];
+							// = fmin(1, fmax(0, ));
+							//tex_coords[2][j][0] = fmin(1, fmax(0, tex_coords[2][j][0] + zoom));
+						}
+					}
 				}
 			}
 			else if (plane == 1) { // (0, 2, 1)
