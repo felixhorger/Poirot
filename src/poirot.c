@@ -1,5 +1,6 @@
 #include <stdlib.h>
 #include <stdio.h>
+#include <math.h>
 #include "../include/glad.h"
 #include <GLFW/glfw3.h>
 
@@ -323,21 +324,27 @@ int main(int argc, char* argv[]) {
 	glTexSubImage3D(GL_TEXTURE_3D, 0, 0, 0, 0, 100, 100, 100, GL_RED, GL_FLOAT, image);
 
 	// Main loop
-	float zoom_incr = 0.005;
+	float zoom_incr = 0.007;
 	float shift[3];
 	while (!glfwWindowShouldClose(window)) {
 		glClear(GL_COLOR_BUFFER_BIT);
-		// Input
 		// Events
-		char mouse_left_button = glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS;
-		char zoom_in_key = glfwGetKey(window, GLFW_KEY_EQUAL) == GLFW_PRESS;
-		char zoom_out_key = glfwGetKey(window, GLFW_KEY_MINUS) == GLFW_PRESS;
-		char move_up_key = glfwGetKey(window, GLFW_KEY_UP) == GLFW_PRESS;
-		char move_down_key = glfwGetKey(window, GLFW_KEY_DOWN) == GLFW_PRESS;
-		char move_right_key = glfwGetKey(window, GLFW_KEY_RIGHT) == GLFW_PRESS;
-		char move_left_key = glfwGetKey(window, GLFW_KEY_LEFT) == GLFW_PRESS;
+		glfwPollEvents();
+		//glfwWaitEvents();
+		// Input
+		char mouse_left_button	= glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT)	== GLFW_PRESS;
+		char zoom_in_key		= glfwGetKey(window, GLFW_KEY_EQUAL)					== GLFW_PRESS;
+		char zoom_out_key		= glfwGetKey(window, GLFW_KEY_MINUS)					== GLFW_PRESS;
+		char move_up_key		= glfwGetKey(window, GLFW_KEY_UP)						== GLFW_PRESS;
+		char move_down_key		= glfwGetKey(window, GLFW_KEY_DOWN)						== GLFW_PRESS;
+		char move_right_key		= glfwGetKey(window, GLFW_KEY_RIGHT)					== GLFW_PRESS;
+		char move_left_key 		= glfwGetKey(window, GLFW_KEY_LEFT)						== GLFW_PRESS;
 		// React to events
-		if (mouse_left_button || zoom_in_key || zoom_out_key || move_up_key) {
+		if (
+			mouse_left_button ||
+			zoom_in_key || zoom_out_key	 ||
+			move_up_key || move_down_key || move_right_key || move_left_key
+		) {
 			// Mouse position and texture coordinates
 			float mouse_window[2];
 			{
@@ -377,10 +384,15 @@ int main(int argc, char* argv[]) {
 					// Zoom into texture
 					for (int i = 0; i < 4; i++) {
 						for (int j = 0; j < 2; j++) {
-							tex_coords[0][i][1-j] = zoom * (tex_coords[0][i][1-j] - mouse_tex_coord[j]) + mouse_tex_coord[j];
+							tex_coords[0][i][1-j] = fmin(
+								1,
+								fmax(
+									0,
+									zoom * (tex_coords[0][i][1-j] - mouse_tex_coord[j]) + mouse_tex_coord[j]
+								)
+							);
 						}
 					}
-					// TODO: clamp values
 					plane_0_window_coords(centres[0], centres[0], tex_coords[0][0], tex_coords[0][2]);
 					// TODO: store cross centres (in texture coords) as separate variable to avoid numerical error if heavy zooming
 				}
@@ -432,8 +444,6 @@ int main(int argc, char* argv[]) {
 		glDrawArraysInstanced(GL_LINES, 2, 2, 3);
 		glFlush();
 		glfwSwapBuffers(window);
-		glfwPollEvents();
-		//glfwWaitEvents();
 	}
 
 	// Clean up
