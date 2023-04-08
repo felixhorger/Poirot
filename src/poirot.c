@@ -329,9 +329,8 @@ int main(int argc, char* argv[]) {
 	glTexSubImage3D(GL_TEXTURE_3D, 0, 0, 0, 0, 100, 100, 100, GL_RED, GL_FLOAT, image);
 
 	// Main loop
-	int zoom_level = 0;
-	float zoom_incr = 0.007;
-	float shift[3];
+	float zoom_incr = 0.0075;
+	float move_speed = 0.0075;
 	while (!glfwWindowShouldClose(window)) {
 		glClear(GL_COLOR_BUFFER_BIT);
 		// Events
@@ -388,8 +387,8 @@ int main(int argc, char* argv[]) {
 				if (zoom_in_key || zoom_out_key) {
 					// Change zoom
 					float zoom = 1;
-					if (zoom_in_key)		{zoom -= zoom_incr; zoom_level -= 1;}
-					else if (zoom_out_key)	{zoom += zoom_incr; zoom_level += 1;}
+					if (zoom_in_key)		zoom -= zoom_incr;
+					else if (zoom_out_key)	zoom += zoom_incr;
 					// Zoom into texture
 					float shift[2] = {0};
 					for (int i = 0; i < 4; i++) {
@@ -411,25 +410,18 @@ int main(int argc, char* argv[]) {
 					// Update position of cross in window
 					plane_0_window_coords(centres[0], tex_centres[0], tex_coords[0][0], tex_coords[0][2]);
 				}
-				if (move_up_key) {
-					float zoom = 0.01 * powf((1 + zoom_incr), zoom_level / 100.0);
-					printf("%f %f %d\n", zoom, 1 / zoom_incr, zoom_level);
-					float new_coord[3];
-					char is_outside = 0;
-					for (int j = 0; j < 4; j++) {
-						float c = tex_coords[0][j][0] + zoom;
-						if (c < 0.0 || c > 1.0) {
-							is_outside = 1;
-							break;
+				if (move_up_key || move_down_key) {
+					float move = (move_up_key ? 1 : -1) * move_speed * (tex_coords[0][2][0] - tex_coords[0][0][0]);
+					for (int i = 0; i < 4; i++) {
+						float c = tex_coords[0][i][0] + move;
+						if (c < 0.0) {
+							move -= c;
+						}
+						else if (c > 1.0) {
+							move += 1 - c;
 						}
 					}
-					if (!is_outside) {
-						for (int j = 0; j < 4; j++) {
-							tex_coords[0][j][0] = new_coord[j];
-							// = fmin(1, fmax(0, ));
-							//tex_coords[2][j][0] = fmin(1, fmax(0, tex_coords[2][j][0] + zoom));
-						}
-					}
+					for (int i = 0; i < 4; i++) tex_coords[0][i][0] = fmax(0, fmin(1, move + tex_coords[0][i][0]));
 				}
 			}
 			else if (plane == 1) { // (0, 2, 1)
