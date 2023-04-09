@@ -91,23 +91,89 @@ char active_plane(double x, double y) {
 		if (y >= 0.02 && y <= 0.98)			plane = 0; // (0, 1, 2)
 		else if (y <= -0.02 && y >= -0.98)	plane = 1; // (0, 2, 1)
 	}
-	else if (x >= 0.02 && x <= 0.98 && y >= 0.02 && y <= 0.98) plane = 2; // (1, 2, 0)
+	else if (x >= 0.02 && x <= 0.98 && y >= 0.02 && y <= 0.98) plane = 2; // (2, 1, 0)
 	return plane;
 }
 
-void plane_0_tex_coords(float tex_coord[2], float window_coord[2], float tex_lower[2], float tex_upper[2]) {
-	tex_coord[0] = (window_coord[0] - 0.02 + 1.0) / 0.96 * (tex_upper[1] - tex_lower[1]) + tex_lower[1];
-	tex_coord[1] = (window_coord[1] - 0.02      ) / 0.96 * (tex_upper[0] - tex_lower[0]) + tex_lower[0];
+// Views axes in arrays
+const char views_axes[3][3] = {
+	{0, 1, 2},
+	{0, 2, 1},
+	{2, 1, 0}
+};
+
+const float plane_tex_shift[3][2] = {
+	{-0.02 + 1.0, -0.02			}, // (0, 1, 2)
+	{-0.02 + 1.0, -0.02 + 1.0	}, // (0, 2, 1)
+	{-0.02		, -0.02			}  // (2, 1, 0)
+};
+
+void compute_tex_coords(char plane, float tex_coord[2], float window_coord[2], float tex_lower[3], float tex_upper[3]) {
+	if (plane < 0 || plane > 2) {
+		printf("Error: invalid plane %d", plane);
+		exit(1);
+	}
+	for (int i = 0; i < 2; i++) {
+		int axis = views_axes[plane][i];
+		tex_coord[i] = (window_coord[i] + plane_tex_shift[plane][i]) / 0.96 * (tex_upper[axis] - tex_lower[axis]) + tex_lower[axis];
+	}
+	return;
+}
+void compute_window_coords(char plane, float window_coord[2], float tex_coord[2], float tex_lower[3], float tex_upper[3]) {
+	if (plane < 0 || plane > 2) {
+		printf("Error: invalid plane %d", plane);
+		exit(1);
+	}
+	for (int i = 0; i < 2; i++) {
+		int axis = views_axes[plane][i];
+		window_coord[i] = (tex_coord[i] - tex_lower[axis]) * 0.96 / (tex_upper[axis] - tex_lower[axis]) - plane_tex_shift[plane][i];
+	}
 	return;
 }
 
-void plane_0_window_coords(float window_coord[2], float tex_coord[2], float tex_lower[2], float tex_upper[2]) {
-	window_coord[0] = (tex_coord[0] - tex_lower[1]) * 0.96 / (tex_upper[1] - tex_lower[1]) + 0.02 - 1.0;
-	window_coord[1] = (tex_coord[1] - tex_lower[0]) * 0.96 / (tex_upper[0] - tex_lower[0]) + 0.02;
+// Changes only the first two elements in centers[:][0:1]
+void update_cross_centres(char plane, float tex_centres[3][2]) {
+	switch (plane) {
+		case 0:
+			tex_centres[1][0] = tex_centres[0][0];
+			tex_centres[2][1] = tex_centres[0][1];
+			break;
+		case 1:
+			tex_centres[0][0] = tex_centres[1][0];
+			tex_centres[2][0] = tex_centres[1][1];
+			break;
+		case 2:
+			tex_centres[0][1] = tex_centres[2][1];
+			tex_centres[1][1] = tex_centres[2][0];
+			break;
+		default:
+			printf("Error: invalid plane %d", plane);
+			exit(1);
+	}
 	return;
 }
 
 
+void update_view_slices(char plane, float tex_coords[3][4][3], float tex_centres[3][2]) {
+	if (plane < 0 || plane > 2) {
+		printf("Error: invalid plane %d", plane);
+		exit(1);
+	}
+	const char slice_axis[3][3] = {
+		{2, 1, 0},
+		{1, 2, 0},
+		{0, 1, 2}
+	};
+	char other_planes[2] = {(plane + 2) % 3, (plane + 1) % 3};
+	for (int p = 0; p < 2; p++) {
+		char other_plane = other_planes[p];
+		int slice = views_axes[other_plane][2];
+		for (int i = 0; i < 4; i++) {
+			tex_coords[other_plane][i][slice] = tex_centres[plane][slice_axis[plane][other_plane]];
+		}
+	}
+	return;
+}
 
 int main(int argc, char* argv[]) {
 
@@ -182,21 +248,21 @@ int main(int argc, char* argv[]) {
 	float tex_coords[3][4][3] = { // plane, corner, axis
 		{ // (0, 1, 2)
 			{ 0.0f, 0.0f, 0.5f },
-			{ 0.0f, 1.0f, 0.5f },
+			{ 1.0f, 0.0f, 0.5f },
 			{ 1.0f, 1.0f, 0.5f },
-			{ 1.0f, 0.0f, 0.5f }
+			{ 0.0f, 1.0f, 0.5f }
 		},
 		{ // (0, 2, 1)
 			{ 0.0f, 0.5f, 0.0f },
-			{ 0.0f, 0.5f, 1.0f },
+			{ 1.0f, 0.5f, 0.0f },
 			{ 1.0f, 0.5f, 1.0f },
-			{ 1.0f, 0.5f, 0.0f }
+			{ 0.0f, 0.5f, 1.0f }
 		},
 		{ // (2, 1, 0)
 			{ 0.5f, 0.0f, 0.0f },
-			{ 0.5f, 1.0f, 0.0f },
+			{ 0.5f, 0.0f, 1.0f },
 			{ 0.5f, 1.0f, 1.0f },
-			{ 0.5f, 0.0f, 1.0f }
+			{ 0.5f, 1.0f, 0.0f }
 		}
 	};
 
@@ -257,15 +323,13 @@ int main(int argc, char* argv[]) {
 	float centres[3][4] = {
 		{-0.5f,  0.5f, -0.5f,  0.5f}, // (0, 1, 2)
 		{-0.5f, -0.5f, -0.5f, -0.5f}, // (0, 2, 1)
-		{ 0.5f,  0.5f,  0.5f,  0.5f}  // (1, 2, 0)
+		{ 0.5f,  0.5f,  0.5f,  0.5f}  // (2, 1, 0)
 	};
 	float tex_centres[3][2] = {
 		{0.5f, 0.5f}, // (0, 1, 2)
 		{0.5f, 0.5f}, // (0, 2, 1)
-		{0.5f, 0.5f}  // (1, 2, 0)
+		{0.5f, 0.5f}  // (2, 1, 0)
 	};
-
-	float image[100*100*100] = { 0 };
 
 	GLuint buffers[2];
 	glGenBuffers(2, &buffers[0]);
@@ -321,22 +385,53 @@ int main(int argc, char* argv[]) {
 	glCullFace(GL_BACK);
 	glLineWidth(2.0);
 
-	for (int i = 0; i < 100*100*100; i++) {
-		image[i] = ((float)rand()) / RAND_MAX;
-		//printf("%f\n", image[i]);
+	float image[100][100][100] = { 0 };
+	//for (int i = 0; i < 100*100*100; i++) {
+	//	image[i] = ((float)rand()) / RAND_MAX;
+	//	//printf("%f\n", image[i]);
+	//}
+	//for (int i = 0; i < 100; i++) {
+	//	for (int j = 0; j < 100; j++) {
+	//		for (int k = 0; k < 100; k++) {
+	//			image[i][j][k] = (i * j * k) / 1000000.0;
+	//		}
+	//	}
+	//}
+	for (int i = 49; i < 52; i++) {
+		for (int j = 49; j < 52; j++) {
+			for (int k = 49; k < 52; k++) {
+				image[i][j][k] = 1;
+			}
+		}
 	}
-	//image[50][99][0] = 1;
 	glTexSubImage3D(GL_TEXTURE_3D, 0, 0, 0, 0, 100, 100, 100, GL_RED, GL_FLOAT, image);
 
 	// Main loop
 	float zoom_incr = 0.0075;
 	float move_speed = 0.0075;
+	float mouse_window[2];
+	float mouse_delta[2];
+	char was_plane = -1;
 	while (!glfwWindowShouldClose(window)) {
 		glClear(GL_COLOR_BUFFER_BIT);
 		// Events
-		glfwPollEvents();
-		//glfwWaitEvents();
+		glfwPollEvents(); //glfwWaitEvents();
+		// Mouse position
+		{
+			double x, y;
+			glfwGetCursorPos(window, &x, &y);
+			// Convert to GL coordinates
+			x = 2.0 * (x - window_offset_x) / window_length - 1.0;
+			y = 1.0 - 2.0 * (y - window_offset_y) / window_length;
+			//printf("%f, %f\n", x, y);
+			mouse_delta[0] = mouse_window[0] - x;
+			mouse_delta[1] = mouse_window[1] - y;
+			mouse_window[0] = x;
+			mouse_window[1] = y;
+		}
 		// Input
+		char mouse_right_button_state = glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_RIGHT);
+		char mouse_right_button	= mouse_right_button_state == GLFW_PRESS;
 		char mouse_left_button	= glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT)	== GLFW_PRESS;
 		char zoom_in_key		= glfwGetKey(window, GLFW_KEY_EQUAL)					== GLFW_PRESS;
 		char zoom_out_key		= glfwGetKey(window, GLFW_KEY_MINUS)					== GLFW_PRESS;
@@ -345,44 +440,33 @@ int main(int argc, char* argv[]) {
 		char move_right_key		= glfwGetKey(window, GLFW_KEY_RIGHT)					== GLFW_PRESS;
 		char move_left_key 		= glfwGetKey(window, GLFW_KEY_LEFT)						== GLFW_PRESS;
 		// React to events
+		if (mouse_right_button_state == GLFW_RELEASE) was_plane = -1;
 		if (
-			mouse_left_button ||
-			zoom_in_key || zoom_out_key	 ||
+			mouse_left_button || mouse_right_button ||
+			zoom_in_key || zoom_out_key  ||
 			move_up_key || move_down_key || move_right_key || move_left_key
 		) {
-			// Mouse position and texture coordinates
-			float mouse_window[2];
-			{
-				double x, y;
-				glfwGetCursorPos(window, &x, &y);
-				// Convert to GL coordinates
-				mouse_window[0] = 2.0 * (x - window_offset_x) / window_length - 1.0;
-				mouse_window[1] = 1.0 - 2.0 * (y - window_offset_y) / window_length;
-			}
-			//printf("%f, %f\n", x, y);
 			char plane = active_plane(mouse_window[0], mouse_window[1]);
 			// Execute, dependent on which plane is active
 			char update = 1;
 			float mouse_tex_coord[2];
-			if (plane == 0) { // (0, 1, 2)
-				// Scale according to current zoomed view
-				float mouse_tex_coord[2];
-				plane_0_tex_coords(mouse_tex_coord, mouse_window, tex_coords[0][0], tex_coords[0][2]);
+
+			if (plane != -1) {
+				compute_tex_coords(plane, mouse_tex_coord, mouse_window, tex_coords[plane][0], tex_coords[plane][2]);
 				if (mouse_left_button) {
-					// Change position of crosses in window coordinates
-					centres[0][0] = mouse_window[0];
-					centres[0][1] = mouse_window[1];
-					centres[1][0] = mouse_window[0];
-					centres[2][1] = mouse_window[1];
-					// Change position of crosses in texture coordinates
+					// Change position of cross of plane
+					for (int i = 0; i < 2; i++) centres[plane][i] = mouse_window[i];
+					// Compute tex coordinate from that
+					compute_tex_coords(plane, tex_centres[plane], centres[plane], tex_coords[plane][0], tex_coords[plane][2]);
+					// Copy tex coordinates into crosses of other planes
+					update_cross_centres(plane, tex_centres);
+					// Update window coordinates of crosses
 					for (int i = 0; i < 3; i++) {
-						plane_0_tex_coords(tex_centres[i], centres[i], tex_coords[i][0], tex_coords[i][2]);
+						if (i == plane) continue;
+						compute_window_coords(i, centres[i], tex_centres[i], tex_coords[i][0], tex_coords[i][2]);
 					}
-					// Change slice in other views
-					for (int i = 0; i < 4; i++) {
-						tex_coords[2][i][0] = mouse_tex_coord[0];
-						tex_coords[1][i][1] = mouse_tex_coord[1];
-					}
+					// Change slices in other views
+					update_view_slices(plane, tex_coords, tex_centres);
 				}
 				if (zoom_in_key || zoom_out_key) {
 					// Change zoom
@@ -393,8 +477,9 @@ int main(int argc, char* argv[]) {
 					float shift[2] = {0};
 					for (int i = 0; i < 4; i++) {
 						for (int j = 0; j < 2; j++) {
-							float c = zoom * (tex_coords[0][i][j] - mouse_tex_coord[1-j]) + mouse_tex_coord[1-j];
-							tex_coords[0][i][j] = c;
+							int axis = views_axes[plane][j];
+							float c = zoom * (tex_coords[plane][i][axis] - mouse_tex_coord[j]) + mouse_tex_coord[j];
+							tex_coords[plane][i][axis] = c;
 							if (c < 0)		c = -c;
 							else if (c > 1)	c = 1 - c;
 							else			c = 0;
@@ -403,52 +488,112 @@ int main(int argc, char* argv[]) {
 					}
 					for (int i = 0; i < 4; i++) {
 						for (int j = 0; j < 2; j++) {
-							tex_coords[0][i][j] = fmax(0, fmin(1, tex_coords[0][i][j] + shift[j]));
+							int axis = views_axes[plane][j];
+							tex_coords[plane][i][axis] = fmax(0, fmin(1, tex_coords[plane][i][axis] + shift[j]));
 							// Still need fmax/fmin because of inaccuracy
 						}
 					}
 					// Update position of cross in window
-					plane_0_window_coords(centres[0], tex_centres[0], tex_coords[0][0], tex_coords[0][2]);
+					compute_window_coords(plane, centres[plane], tex_centres[plane], tex_coords[plane][0], tex_coords[plane][2]);
 				}
-				if (move_up_key || move_down_key) {
-					float move = (move_up_key ? 1 : -1) * move_speed * (tex_coords[0][2][0] - tex_coords[0][0][0]);
-					for (int i = 0; i < 4; i++) {
-						float c = tex_coords[0][i][0] + move;
-						if (c < 0.0) {
-							move -= c;
+				if (mouse_right_button) {
+					was_plane = 0;
+					float move;
+					for (int axis = 0; axis < 2; axis++) {
+						move = 100 * mouse_delta[axis] * move_speed * (tex_coords[0][2][axis] - tex_coords[0][0][axis]);
+						for (int i = 0; i < 4; i++) {
+							float c = tex_coords[0][i][axis] + move;
+							if (c < 0.0) move -= c;
+							else if (c > 1.0) move += 1 - c;
 						}
-						else if (c > 1.0) {
-							move += 1 - c;
-						}
+						for (int i = 0; i < 4; i++)
+							tex_coords[0][i][axis] = fmax(0, fmin(1, move + tex_coords[0][i][axis]));
 					}
-					for (int i = 0; i < 4; i++) tex_coords[0][i][0] = fmax(0, fmin(1, move + tex_coords[0][i][0]));
+					// Update position of cross in window
+					compute_window_coords(was_plane, centres[was_plane], tex_centres[was_plane], tex_coords[was_plane][0], tex_coords[was_plane][2]);
 				}
 			}
-			else if (plane == 1) { // (0, 2, 1)
-				if (mouse_left_button) {
-					centres[1][0] = mouse_window[0];
-					centres[1][1] = mouse_window[1];
-					centres[0][0] = mouse_window[0];
-					centres[2][0] = mouse_window[1] + 1.0;
+
+			if (plane == 0 || was_plane == 0) { // (0, 1, 2)
+				// Scale according to current zoomed view
+				//if (zoom_in_key || zoom_out_key) {
+				//	// Change zoom
+				//	float zoom = 1;
+				//	if (zoom_in_key)		zoom -= zoom_incr;
+				//	else if (zoom_out_key)	zoom += zoom_incr;
+				//	// Zoom into texture
+				//	float shift[2] = {0};
+				//	for (int i = 0; i < 4; i++) {
+				//		for (int j = 0; j < 2; j++) {
+				//			float c = zoom * (tex_coords[0][i][j] - mouse_tex_coord[1-j]) + mouse_tex_coord[1-j];
+				//			tex_coords[0][i][j] = c;
+				//			if (c < 0)		c = -c;
+				//			else if (c > 1)	c = 1 - c;
+				//			else			c = 0;
+				//			if (c != 0) shift[j] = c;
+				//		}
+				//	}
+				//	for (int i = 0; i < 4; i++) {
+				//		for (int j = 0; j < 2; j++) {
+				//			tex_coords[0][i][j] = fmax(0, fmin(1, tex_coords[0][i][j] + shift[j]));
+				//			// Still need fmax/fmin because of inaccuracy
+				//		}
+				//	}
+				//	// Update position of cross in window
+				//	compute_window_coords(plane, centres[0], tex_centres[0], tex_coords[0][0], tex_coords[0][2]);
+				//}
+				//if (mouse_right_button) {
+				//	was_plane = 0;
+				//	float move;
+				//	for (int axis = 0; axis < 2; axis++) {
+				//		move = 100 * mouse_delta[1-axis] * move_speed * (tex_coords[0][2][axis] - tex_coords[0][0][axis]);
+				//		for (int i = 0; i < 4; i++) {
+				//			float c = tex_coords[0][i][axis] + move;
+				//			if (c < 0.0) move -= c;
+				//			else if (c > 1.0) move += 1 - c;
+				//		}
+				//		for (int i = 0; i < 4; i++)
+				//			tex_coords[0][i][axis] = fmax(0, fmin(1, move + tex_coords[0][i][axis]));
+				//	}
+				//}
+				if (move_up_key || move_down_key || move_right_key || move_left_key) {
+					char sign = move_up_key || move_right_key ? 1 : -1;
+					char axis = move_up_key || move_down_key ? 0 : 1;
+					float move = sign * move_speed * (tex_coords[0][2][axis] - tex_coords[0][0][axis]);
 					for (int i = 0; i < 4; i++) {
-						tex_coords[0][i][2] = (mouse_window[1] - 0.02 + 1.0) / 0.96;
-						tex_coords[2][i][0] = (mouse_window[0] - 0.02 + 1.0) / 0.96;
+						float c = tex_coords[0][i][axis] + move;
+						if (c < 0.0) move -= c;
+						else if (c > 1.0) move += 1 - c;
 					}
+					for (int i = 0; i < 4; i++)
+						tex_coords[0][i][axis] = fmax(0, fmin(1, move + tex_coords[0][i][axis]));
 				}
 			}
-			else if (plane == 2) { // (1, 2, 0)
-				if (mouse_left_button) {
-					centres[2][0] = mouse_window[0];
-					centres[2][1] = mouse_window[1];
-					centres[0][1] = mouse_window[1];
-					centres[1][1] = mouse_window[0] - 1.0;
-					for (int i = 0; i < 4; i++) {
-						tex_coords[0][i][2] = (mouse_window[0] - 0.02) / 0.96;
-						tex_coords[1][i][1] = (mouse_window[1] - 0.02) / 0.96;
-					}
-				}
-			}
-			else update = 0;
+			//else if (plane == 1) { // (0, 2, 1)
+			//	if (mouse_left_button) {
+			//		centres[1][0] = mouse_window[0];
+			//		centres[1][1] = mouse_window[1];
+			//		centres[0][0] = mouse_window[0];
+			//		centres[2][0] = mouse_window[1] + 1.0;
+			//		for (int i = 0; i < 4; i++) {
+			//			tex_coords[0][i][2] = (mouse_window[1] - 0.02 + 1.0) / 0.96;
+			//			tex_coords[2][i][0] = (mouse_window[0] - 0.02 + 1.0) / 0.96;
+			//		}
+			//	}
+			//}
+			//else if (plane == 2) { // (2, 1, 0)
+			//	if (mouse_left_button) {
+			//		centres[2][0] = mouse_window[0];
+			//		centres[2][1] = mouse_window[1];
+			//		centres[0][1] = mouse_window[1];
+			//		centres[1][1] = mouse_window[0] - 1.0;
+			//		for (int i = 0; i < 4; i++) {
+			//			tex_coords[0][i][2] = (mouse_window[0] - 0.02) / 0.96;
+			//			tex_coords[1][i][1] = (mouse_window[1] - 0.02) / 0.96;
+			//		}
+			//	}
+			//}
+			//else update = 0; // TODO this is useless, make it depend on keys pressed
 			if (update) {
 				// TODO don't copy all?
 				glBindBuffer(GL_ARRAY_BUFFER, buffers[0]);
@@ -457,18 +602,20 @@ int main(int argc, char* argv[]) {
 				glBufferSubData(GL_ARRAY_BUFFER, sizeof(crosses), sizeof(centres), centres);
 			}
 		}
-		// Esc
-		if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS) glfwSetWindowShouldClose(window, 1);
+		// Escape
+		if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS) break; //glfwSetWindowShouldClose(window, 1);
 		// Views
 		glUseProgram(views_program);
 		glBindVertexArray(views_vertex_array);
 		for (int i = 0; i <= 8; i += 4) glDrawArrays(GL_TRIANGLE_FAN, i, 4);
+		// Crosses
 		glUseProgram(crosses_program);
 		glBindVertexArray(crosses_vertex_array);
 		glUniform1i(cross_vertical, 0); 
 		glDrawArraysInstanced(GL_LINES, 0, 2, 3);
 		glUniform1i(cross_vertical, 1); 
 		glDrawArraysInstanced(GL_LINES, 2, 2, 3);
+		// Flush and swap
 		glFlush();
 		glfwSwapBuffers(window);
 	}
