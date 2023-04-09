@@ -175,6 +175,23 @@ void update_view_slices(char plane, float tex_coords[3][4][3], float tex_centres
 	return;
 }
 
+void move_view(char plane, float rel_shift[2], float tex_coords[4][3], float centre[4], float tex_centre[2]) {
+	for (int a = 0; a < 2; a++) {
+		int axis = views_axes[plane][a];
+		float move = rel_shift[a] * (tex_coords[2][axis] - tex_coords[0][axis]);
+		for (int i = 0; i < 4; i++) {
+			float c = tex_coords[i][axis] + move;
+			if (c < 0.0) move -= c;
+			else if (c > 1.0) move += 1 - c;
+		}
+		for (int i = 0; i < 4; i++)
+			tex_coords[i][axis] = fmax(0, fmin(1, move + tex_coords[i][axis]));
+	}
+	// Update position of cross in window
+	compute_window_coords(plane, centre, tex_centre, tex_coords[0], tex_coords[2]);
+	return;
+}
+
 int main(int argc, char* argv[]) {
 
 	// Open window
@@ -495,26 +512,21 @@ int main(int argc, char* argv[]) {
 					// Update position of cross in window
 					compute_window_coords(plane, centres[plane], tex_centres[plane], tex_coords[plane][0], tex_coords[plane][2]);
 				}
+				if (move_up_key || move_down_key || move_right_key || move_left_key) {
+					char sign = move_up_key || move_right_key ? 1 : -1;
+					char axis = move_up_key || move_down_key ? 1 : 0;
+					float rel_shift[2] = {0};
+					rel_shift[axis] = sign * move_speed;
+					move_view(plane, rel_shift, tex_coords[plane], centres[plane], tex_centres[plane]);
+				}
 				if (was_plane == -1) was_plane = plane;
 			}
 
 			if (was_plane != -1) {
 				if (mouse_right_button) {
-					for (int a = 0; a < 2; a++) {
-						int axis = views_axes[was_plane][a];
-						float move = 100 * mouse_delta[a] * move_speed * (
-							tex_coords[was_plane][2][axis] - tex_coords[was_plane][0][axis]
-						);
-						for (int i = 0; i < 4; i++) {
-							float c = tex_coords[was_plane][i][axis] + move;
-							if (c < 0.0) move -= c;
-							else if (c > 1.0) move += 1 - c;
-						}
-						for (int i = 0; i < 4; i++)
-							tex_coords[was_plane][i][axis] = fmax(0, fmin(1, move + tex_coords[was_plane][i][axis]));
-					}
-					// Update position of cross in window
-					compute_window_coords(was_plane, centres[was_plane], tex_centres[was_plane], tex_coords[was_plane][0], tex_coords[was_plane][2]);
+					float rel_shift[2];
+					for (int i = 0; i < 2; i++) rel_shift[i] = 100 * mouse_delta[i] * move_speed;
+					move_view(was_plane, rel_shift, tex_coords[was_plane], centres[was_plane], tex_centres[was_plane]);
 				}
 			}
 
@@ -560,18 +572,18 @@ int main(int argc, char* argv[]) {
 				//			tex_coords[0][i][axis] = fmax(0, fmin(1, move + tex_coords[0][i][axis]));
 				//	}
 				//}
-				if (move_up_key || move_down_key || move_right_key || move_left_key) {
-					char sign = move_up_key || move_right_key ? 1 : -1;
-					char axis = move_up_key || move_down_key ? 0 : 1;
-					float move = sign * move_speed * (tex_coords[0][2][axis] - tex_coords[0][0][axis]);
-					for (int i = 0; i < 4; i++) {
-						float c = tex_coords[0][i][axis] + move;
-						if (c < 0.0) move -= c;
-						else if (c > 1.0) move += 1 - c;
-					}
-					for (int i = 0; i < 4; i++)
-						tex_coords[0][i][axis] = fmax(0, fmin(1, move + tex_coords[0][i][axis]));
-				}
+				//if (move_up_key || move_down_key || move_right_key || move_left_key) {
+				//	char sign = move_up_key || move_right_key ? 1 : -1;
+				//	char axis = move_up_key || move_down_key ? 0 : 1;
+				//	float move = sign * move_speed * (tex_coords[0][2][axis] - tex_coords[0][0][axis]);
+				//	for (int i = 0; i < 4; i++) {
+				//		float c = tex_coords[0][i][axis] + move;
+				//		if (c < 0.0) move -= c;
+				//		else if (c > 1.0) move += 1 - c;
+				//	}
+				//	for (int i = 0; i < 4; i++)
+				//		tex_coords[0][i][axis] = fmax(0, fmin(1, move + tex_coords[0][i][axis]));
+				//}
 			}
 			//else if (plane == 1) { // (0, 2, 1)
 			//	if (mouse_left_button) {
