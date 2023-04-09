@@ -489,25 +489,29 @@ int main(int argc, char* argv[]) {
 					for (int i = 0; i < 4; i++) {
 						for (int j = 0; j < 2; j++) {
 							int axis = views_axes[plane][j];
-							tex_coords[plane][i][axis] = fmax(0, fmin(1, tex_coords[plane][i][axis] + shift[j]));
-							// Still need fmax/fmin because of inaccuracy
+							tex_coords[plane][i][axis] = fmax(0, fmin(1, tex_coords[plane][i][axis] + shift[j])); // Still need fmax/fmin because of inaccuracy
 						}
 					}
 					// Update position of cross in window
 					compute_window_coords(plane, centres[plane], tex_centres[plane], tex_coords[plane][0], tex_coords[plane][2]);
 				}
+				if (was_plane == -1) was_plane = plane;
+			}
+
+			if (was_plane != -1) {
 				if (mouse_right_button) {
-					was_plane = 0;
-					float move;
-					for (int axis = 0; axis < 2; axis++) {
-						move = 100 * mouse_delta[axis] * move_speed * (tex_coords[0][2][axis] - tex_coords[0][0][axis]);
+					for (int a = 0; a < 2; a++) {
+						int axis = views_axes[was_plane][a];
+						float move = 100 * mouse_delta[a] * move_speed * (
+							tex_coords[was_plane][2][axis] - tex_coords[was_plane][0][axis]
+						);
 						for (int i = 0; i < 4; i++) {
-							float c = tex_coords[0][i][axis] + move;
+							float c = tex_coords[was_plane][i][axis] + move;
 							if (c < 0.0) move -= c;
 							else if (c > 1.0) move += 1 - c;
 						}
 						for (int i = 0; i < 4; i++)
-							tex_coords[0][i][axis] = fmax(0, fmin(1, move + tex_coords[0][i][axis]));
+							tex_coords[was_plane][i][axis] = fmax(0, fmin(1, move + tex_coords[was_plane][i][axis]));
 					}
 					// Update position of cross in window
 					compute_window_coords(was_plane, centres[was_plane], tex_centres[was_plane], tex_coords[was_plane][0], tex_coords[was_plane][2]);
