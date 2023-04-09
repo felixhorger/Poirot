@@ -27,12 +27,21 @@ void GLAPIENTRY gl_error_callback(
 	exit(1);
 }
 
-int window_length, window_offset_x, window_offset_y;
+int window_width, window_height;
+float ratio = 1;
+int ratio_axis = 0;
+char window_size_update = 0;
 void framebuffer_size_callback(GLFWwindow* window, int width, int height) {
-	window_length = width < height ? width : height;
-	window_offset_x = (width - window_length) / 2;
-	window_offset_y = (height - window_length) / 2;
-	glViewport(window_offset_x, window_offset_y, window_length, window_length);
+	window_width = width;
+	window_height = height;
+	glViewport(0, 0, window_width, window_height);
+	ratio = ((float)window_width) / ((float)window_height);
+	if (ratio > 1) ratio_axis = 0;
+	else {
+		ratio_axis = 1;
+		ratio = 1 / ratio;
+	}
+	window_size_update = 1;
 	return;
 }
 
@@ -203,19 +212,18 @@ int main(int argc, char* argv[]) {
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 5);
 	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 	glfwSetErrorCallback(error_callback);
-	window_length = 800;
-	window_offset_x = 0;
-	window_offset_y = 0;
-	GLFWwindow* window = glfwCreateWindow(window_length, window_length, "", NULL, NULL); //glfwGetPrimaryMonitor()
+	window_width = 960;
+	window_height = 960;
+	GLFWwindow* window = glfwCreateWindow(window_width, window_height, "", NULL, NULL); //glfwGetPrimaryMonitor()
 	if (!window) {
 		printf("Error: could not open window");
 		return 1;
 	}
 	glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
 	glfwMakeContextCurrent(window);
-	glfwSwapInterval(1);
+	glfwSwapInterval(0); // activating this doesn't work well with wslg, fffff
 	gladLoadGL();
-	glViewport(0, 0, window_length, window_length);
+	glViewport(0, 0, window_width, window_height);
 	glEnable(GL_DEBUG_OUTPUT);
 	glDebugMessageCallback(gl_error_callback, 0);
 
@@ -224,14 +232,19 @@ int main(int argc, char* argv[]) {
 	{
 		const char *shader_code[] = {
 			"\
-				#version 450 core											\n\
-				layout (location = 0) in vec2 position;						\n\
-				layout (location = 1) in vec3 in_tex_coordinate;			\n\
-				out vec3 tex_coordinate;									\n\
-				void main() {												\n\
-					gl_Position = vec4(position, 0.0, 1.0);					\n\
-					tex_coordinate = in_tex_coordinate;						\n\
-				}															\n\
+				#version 450 core										\n\
+				layout (location = 0) in vec2 position;					\n\
+				layout (location = 1) in vec3 in_tex_coordinate;		\n\
+				uniform float ratio;									\n\
+				uniform int axis;										\n\
+				out vec3 tex_coordinate;								\n\
+				void main() {											\n\
+					gl_Position = vec4(position, 0.0, 1.0);				\n\
+					tex_coordinate = in_tex_coordinate;					\n\
+					tex_coordinate[axis] = (							\n\
+						(tex_coordinate[axis] - 0.5) * ratio + 0.5		\n\
+					);													\n\
+				}														\n\
 			",
 			"\
 				#version 450 core										\n\
@@ -355,6 +368,11 @@ int main(int argc, char* argv[]) {
 	glBufferStorage(GL_ARRAY_BUFFER, sizeof(views)+sizeof(tex_coords), NULL, GL_DYNAMIC_STORAGE_BIT);
 	glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(views), views);
 	glBufferSubData(GL_ARRAY_BUFFER, sizeof(views), sizeof(tex_coords), tex_coords);
+	GLint uniform_ratio = glGetUniformLocation(views_program, "ratio");
+	GLint uniform_ratio_axis = glGetUniformLocation(views_program, "axis");
+	glUseProgram(views_program);
+	glUniform1f(uniform_ratio, ratio);
+	glUniform1i(uniform_ratio_axis, ratio_axis);
 	//
 	GLuint views_vertex_array;
 	glGenVertexArrays(1, &views_vertex_array);
@@ -369,7 +387,7 @@ int main(int argc, char* argv[]) {
 	glBufferStorage(GL_ARRAY_BUFFER, sizeof(crosses)+sizeof(centres), NULL, GL_DYNAMIC_STORAGE_BIT);
 	glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(crosses), crosses);
 	glBufferSubData(GL_ARRAY_BUFFER, sizeof(crosses), sizeof(centres), centres);
-	// 
+	//
 	GLuint crosses_vertex_array;
 	glGenVertexArrays(1, &crosses_vertex_array);
 	glBindVertexArray(crosses_vertex_array);
@@ -438,8 +456,8 @@ int main(int argc, char* argv[]) {
 			double x, y;
 			glfwGetCursorPos(window, &x, &y);
 			// Convert to GL coordinates
-			x = 2.0 * (x - window_offset_x) / window_length - 1.0;
-			y = 1.0 - 2.0 * (y - window_offset_y) / window_length;
+			x = 2.0 * x / window_width - 1.0;
+			y = 1.0 - 2.0 * y / window_height;
 			//printf("%f, %f\n", x, y);
 			mouse_delta[0] = mouse_window[0] - x;
 			mouse_delta[1] = mouse_window[1] - y;
@@ -623,13 +641,20 @@ int main(int argc, char* argv[]) {
 		// Views
 		glUseProgram(views_program);
 		glBindVertexArray(views_vertex_array);
-		for (int i = 0; i <= 8; i += 4) glDrawArrays(GL_TRIANGLE_FAN, i, 4);
+		if (window_size_update) {
+			glUniform1f(uniform_ratio, ratio);
+			window_size_update = 0;
+		}
+		for (int i = 0; i <= 8; i += 4) {
+			glUniform1i(uniform_ratio_axis, views_axes[i / 4][ratio_axis]);
+			glDrawArrays(GL_TRIANGLE_FAN, i, 4);
+		}
 		// Crosses
 		glUseProgram(crosses_program);
 		glBindVertexArray(crosses_vertex_array);
-		glUniform1i(cross_vertical, 0); 
+		glUniform1i(cross_vertical, 0);
 		glDrawArraysInstanced(GL_LINES, 0, 2, 3);
-		glUniform1i(cross_vertical, 1); 
+		glUniform1i(cross_vertical, 1);
 		glDrawArraysInstanced(GL_LINES, 2, 2, 3);
 		// Flush and swap
 		glFlush();
