@@ -1,16 +1,16 @@
-.PHONY: all
+.PHONY: all clean
 
-build/glad.o: src/glad.c include/glad.h include/khrplatform.h
-	gcc -c src/glad.c -o build/glad.o
-#
-
-build/poirot.o: src/poirot.c
+build/poirot.o: src/*.c
 	gcc -c src/poirot.c -o build/poirot.o
 #
 
-bin/poirot: build/poirot.o build/glad.o
-	gcc build/poirot.o build/glad.o -ldl -lGL -lglfw -o bin/poirot
+bin/poirot: build/poirot.o ../glaze/lib/libglaze.a
+	#gcc -L../glaze/lib -I../glaze/lib -o bin/poirot build/poirot.o -lglaze -ldl -lm -lGL -lglfw
+	gcc -o bin/poirot build/poirot.o ../glaze/lib/libglaze.a -ldl -lm -lGL -lglfw
 #
 
 all: bin/poirot
-	
+
+clean:
+	rm -f bin/*
+	rm -f build/*
